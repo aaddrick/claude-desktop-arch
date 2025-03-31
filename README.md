@@ -1,6 +1,6 @@
-Now with Arch(PKGBUILD) support!
+**Debian\Ubuntu Linux users:** For the DPKG and Debian-specific instructions: [https://github.com/aaddrick/claude-desktop-debian](https://github.com/aaddrick/claude-desktop-debian)
 
-***THIS IS AN UNOFFICIAL BUILD SCRIPT!***
+***THIS IS AN UNOFFICIAL BUILD SCRIPT FOR ARCH/ARCOLINUX!***
 
 If you run into an issue with this build script, make an issue here. Don't bug Anthropic about it - they already have enough on their plates.
 
@@ -20,35 +20,6 @@ Supports the Ctrl+Alt+Space popup!
 Supports the Tray menu! (Screenshot of running on KDE)
 ![image](https://github.com/user-attachments/assets/ba209824-8afb-437c-a944-b53fd9ecd559)
 
-# Installation Options
-
-## 1. Debian Package (New!)
-
-For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you can build and install Claude Desktop using the provided build script:
-
-```bash
-# Clone this repository
-git clone https://github.com/aaddrick/claude-desktop-debian.git
-cd claude-desktop-debian
-
-# Build the package
-sudo ./build-deb.sh
-# Note: The version number (e.g., 0.8.1) in the command below is an example.
-# The actual filename will contain the version detected by the script.
-sudo dpkg -i ./build/claude-desktop_VERSION_amd64.deb
-
-# The script will automatically:
-# - Check for and install required dependencies
-# - Download and extract resources from the Windows version
-# - Create a proper Debian package
-# - Guide you through installation
-```
-
-Requirements:
-- Any Debian-based Linux distribution
-- Node.js >= 12.0.0 and npm
-- Root/sudo access for dependency installation
-
 ## 2. Arch Linux (PKGBUILD)
 
 For Arch Linux and Arch-based distributions, you can build and install using the provided `PKGBUILD`:
@@ -60,6 +31,7 @@ cd claude-desktop-debian
 
 # Build and install the package
 # This command automatically handles dependencies and installation
+# use makepkg -sci instead to automatically clean up the build files 
 makepkg -si
 
 # The PKGBUILD will:
@@ -69,23 +41,17 @@ makepkg -si
 ```
 **Note:** The `pkgver` in the `PKGBUILD` is currently hardcoded (`0.9.0`). You may need to update it manually if a newer version of Claude Desktop is released before the `PKGBUILD` is updated in this repository.
 
-## Uninstallation
+# Uninstallation
 
 If you installed the package using `dpkg`, you can uninstall it using:
 
 ```bash
-sudo dpkg -r claude-desktop
+sudo pacman -R claude-desktop
 ```
 
-If you also want to remove configuration files (including MCP settings), use `purge`:
+# Troubleshooting
 
-```bash
-sudo dpkg -P claude-desktop
-```
-
-## Troubleshooting
-
-### Application Fails to Launch
+## Application Fails to Launch
 
 If the Claude Desktop application installs successfully but fails to launch (you might see errors related to sandboxing or zygote processes in the terminal when running `claude-desktop`), try launching it with the `--no-sandbox` flag:
 
@@ -108,11 +74,11 @@ If this works, you can make it permanent by editing the launcher script:
 
 **Note:** Disabling the sandbox reduces security isolation. Use this workaround if you understand the implications.
 
-## 3. NixOS Implementation
+# NixOS Implementation
 
 For NixOS users, please refer to [k3d3's claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) repository. Their implementation is specifically designed for NixOS and provides the original Nix flake that inspired this project.
 
-# How it works
+# How it works (Debian/Ubuntu Build)
 
 Claude Desktop is an Electron application packaged as a Windows executable. Our build script performs several key operations to make it work on Linux:
 
