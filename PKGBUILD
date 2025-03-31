@@ -76,12 +76,6 @@ build() {
   echo "Extracting asar package..."
   npx asar extract app.asar app.asar.contents || { echo "asar extract failed"; exit 1; }
 
-  # Modify the application's JavaScript to enable the standard window frame and menu bar
-  echo "Attempting to set frame:true and remove titleBarStyle/titleBarOverlay in index.js..."
-  # Use sed to find and replace the relevant BrowserWindow options in the bundled JS.
-  # This removes the custom title bar and enables the native one (frame:true).
-  sed -i 's/height:e\.height,titleBarStyle:"default",titleBarOverlay:[^,]\+,/height:e.height,frame:true,/g' app.asar.contents/.vite/build/index.js || echo "Warning: sed command failed to modify index.js"
-
 
   # Create a stub for the native Node.js module used by the Windows version.
   # This module handles Windows-specific features (like window effects, notifications)
@@ -141,6 +135,11 @@ EOF
   # Copy internationalization (i18n) JSON files
   mkdir -p app.asar.contents/resources/i18n
   cp ../lib/net45/resources/*-*.json app.asar.contents/resources/i18n/ || echo "Warning: Failed to copy i18n JSON files"
+
+  echo "Downloading Main Window Fix Assets"
+  cd app.asar.contents
+  wget -O- https://github.com/emsi/claude-desktop/raw/refs/heads/main/assets/main_window.tgz | tar -zxvf -
+  cd ..
 
   # Repack the modified contents back into the app.asar archive
   echo "Repacking asar..."
