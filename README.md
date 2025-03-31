@@ -26,8 +26,8 @@ For Arch Linux and Arch-based distributions, you can build and install using the
 
 ```bash
 # Clone this repository
-git clone https://github.com/aaddrick/claude-desktop-debian.git
-cd claude-desktop-debian
+git clone https://github.com/aaddrick/claude-desktop-arch.git
+cd claude-desktop-arch
 
 # Build and install the package
 # This command automatically handles dependencies and installation
