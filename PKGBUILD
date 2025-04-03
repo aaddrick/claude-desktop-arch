@@ -280,14 +280,22 @@ package() {
   echo "Creating desktop entry..."
   cat > "$pkgdir/usr/share/applications/${_pkgname}.desktop" << EOF
 [Desktop Entry]
-Name=Claude                     # Application name displayed in menus
-Exec=$_pkgname %u               # Command to execute (the launcher script), %u handles URL arguments
-Icon=$_pkgname                  # Icon name (refers to the installed icons)
-Type=Application                # Entry type
-Terminal=false                  # Does not require a terminal window
-Categories=Office;Utility;      # Application categories
-MimeType=x-scheme-handler/claude; # Associates the app with claude:// URLs
-StartupWMClass=Claude           # Helps window managers associate windows with this entry
+# Application name displayed in menus
+Name=Claude
+# Command to execute (the launcher script), %u handles URL arguments
+Exec=$_pkgname %u
+# Icon name (refers to the installed icons)
+Icon=$_pkgname
+# Entry type
+Type=Application
+# Does not require a terminal window
+Terminal=false
+# Application categories
+Categories=Office;Utility;
+# Associates the app with claude:// URLs
+MimeType=x-scheme-handler/claude;
+# Helps window managers associate windows with this entry
+StartupWMClass=Claude           
 EOF
 
   # Create a launcher script in /usr/bin
