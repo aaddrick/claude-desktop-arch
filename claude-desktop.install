@@ -1,0 +1,40 @@
+# This install script handles setting permissions for the packaged chrome-sandbox.
+
+_pkgname="claude-desktop"
+_sandbox_path="/usr/lib/$_pkgname/node_modules/electron/dist/chrome-sandbox"
+
+# Function to set sandbox permissions
+set_sandbox_perms() {
+  if [ -f "$_sandbox_path" ]; then
+    echo "Setting permissions for $_sandbox_path..."
+    chown root:root "$_sandbox_path" || echo "Warning: Failed to chown chrome-sandbox" >&2
+    # Set SUID bit for sandbox functionality
+    chmod 4755 "$_sandbox_path" || echo "Warning: Failed to chmod chrome-sandbox" >&2
+    echo "Permissions set for $_sandbox_path."
+  else
+    echo "Warning: Packaged chrome-sandbox not found at $_sandbox_path. Sandbox may not function correctly." >&2
+  fi
+}
+
+# Run after package installation
+post_install() {
+  echo "Running post-install actions for $_pkgname..."
+  set_sandbox_perms
+  # Update desktop database to register the .desktop file and MIME types
+  echo "Updating desktop database..."
+  update-desktop-database -q
+}
+
+# Run after package upgrade
+post_upgrade() {
+  echo "Running post-upgrade actions for $_pkgname..."
+  set_sandbox_perms
+  # Update desktop database in case the .desktop file changed
+  echo "Updating desktop database..."
+  update-desktop-database -q
+}
+
+# Optional: Run before package removal (usually not needed for sandbox permissions)
+# pre_remove() {
+#   # Actions to perform before removal
+# }

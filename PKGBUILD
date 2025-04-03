@@ -1,26 +1,90 @@
-# Maintainer: Your Name <your_email@domain.com> # Please update maintainer info
+# Maintainer: aaddrick <aaddrick@gmail.com> 
 
 # --- Package Metadata ---
 _pkgname=claude-desktop # Internal variable for the base package name
 pkgname=$_pkgname       # The actual package name displayed to the user
-pkgver=0.9.0            # Package version - Hardcoded, update manually for new releases
+# pkgver is now determined dynamically by the pkgver() function
 pkgrel=1                # Package release number, reset to 1 when pkgver changes
 pkgdesc="Claude Desktop for Linux – an AI assistant from Anthropic" # Package description
-arch=('x86_64')         # Supported architecture
+arch=('x86_64' 'aarch64') # Supported architectures
 url="https://github.com/aaddrick/claude-desktop-arch" # Project URL (this repo)
 license=('Unlicense')   # Package license
-depends=('nodejs' 'npm' 'electron' 'p7zip' 'icoutils' 'imagemagick') # Runtime dependencies
-makedepends=('wget' 'p7zip') # Build-time dependencies (p7zip needed in build())
+# electron is removed as it's now packaged locally
+depends=('nodejs' 'npm' 'p7zip' 'icoutils' 'imagemagick') # Runtime dependencies
+# npm is added for local electron/asar install
+makedepends=('wget' 'p7zip' 'npm') # Build-time dependencies
+install=$_pkgname.install # Script for post-install actions (sandbox permissions)
+# --- Source Files & Arch Detection ---
+# Define architecture-specific installer details
+if [[ "$CARCH" == "x86_64" ]]; then
+  _installer_filename="Claude-Setup-x64.exe"
+  _installer_url="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
+  _nupkg_suffix="-full" # Suffix for the nupkg file on x86_64
+elif [[ "$CARCH" == "aarch64" ]]; then
+  _installer_filename="Claude-Setup-arm64.exe"
+  _installer_url="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-arm64/Claude-Setup-arm64.exe"
+  _nupkg_suffix="-arm64-full" # Suffix for the nupkg file on aarch64
+else
+  error "Unsupported architecture: $CARCH"
+  exit 1
+fi
 
-# --- Source Files ---
-# Use a generic name for the installer in source array for easier referencing
-_installer_filename="Claude-Setup-x64.exe"
-# Define source files: installer from Google Storage, LICENSE from GitHub
-source=("$_installer_filename::https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
-        "LICENSE::https://raw.githubusercontent.com/aaddrick/claude-desktop-arch/main/LICENSE")
-# Define SHA256 checksums for source files. 'SKIP' is used because the installer checksum changes with each version.
+# Define source files using the architecture-specific variables
+source=("$_installer_filename::$_installer_url"
+        "LICENSE::https://raw.githubusercontent.com/aaddrick/claude-desktop-arch/main/LICENSE"
+        "$_pkgname.install")
+# --- Version Detection ---
+# This function automatically determines the latest version from the downloaded files.
+pkgver() {
+  # Use the architecture-specific URL and filename defined earlier
+  local _download_url="$_installer_url"
+  local _temp_dir=$(mktemp -d)
+  local _installer_file="$_temp_dir/$_installer_filename" # Use arch-specific filename
+
+  # Download the installer to a temporary location
+  echo "Checking latest version by downloading installer..." >&2 # Output to stderr
+  if ! wget -q -O "$_installer_file" "$_download_url"; then
+    echo "ERROR: Failed to download installer for version check." >&2
+    rm -rf "$_temp_dir"
+    return 1
+  fi
+
+  # Extract the installer in the temporary directory
+  if ! 7z x -y -o"$_temp_dir" "$_installer_file" &> /dev/null; then
+    echo "ERROR: Failed to extract installer for version check." >&2
+    rm -rf "$_temp_dir"
+    return 1
+  fi
+
+  # Find the nupkg file
+  local _nupkg_path_relative=$(find "$_temp_dir" -maxdepth 1 -name "AnthropicClaude-*.nupkg" | head -1)
+  if [ -z "$_nupkg_path_relative" ]; then
+    echo "ERROR: Could not find nupkg file for version check in $_temp_dir" >&2
+    ls -la "$_temp_dir" >&2 # List files for debugging
+    rm -rf "$_temp_dir"
+    return 1
+  fi
+
+  # Extract version from the nupkg filename (using LC_ALL=C for locale compatibility)
+  # Use the architecture-specific nupkg suffix defined earlier in the regex
+  local _version=$(basename "$_nupkg_path_relative" | LC_ALL=C grep -oP "AnthropicClaude-\\K[0-9]+\\.[0-9]+\\.[0-9]+(?=${_nupkg_suffix}\\.nupkg)")
+
+  # Clean up temporary directory
+  rm -rf "$_temp_dir"
+
+  if [ -z "$_version" ]; then
+    echo "ERROR: Could not extract version from nupkg filename: $(basename "$_nupkg_path_relative")" >&2
+    return 1
+  fi
+
+  # Output the detected version
+  echo "$_version"
+}
+
+# Define SHA256 checksums. Both installers are 'SKIP' as they change with version.
 sha256sums=('SKIP' # Installer checksum changes with version
-            'SKIP') # Unlicense checksum (can be calculated if needed)
+            'SKIP' # Unlicense checksum
+            'SKIP') # .install script checksum (run updpkgsums)
 
 # --- Build Process ---
 # This function prepares the application files from the downloaded sources.
@@ -28,26 +92,38 @@ build() {
   # Navigate to the source directory where makepkg downloaded files
   cd "$srcdir"
   # Define the path to the downloaded installer using the generic filename
-  local _installer_file="$srcdir/$_installer_filename"
+  # Use the architecture-specific installer filename defined earlier
+  local _installer_file="$srcdir/$_installer_filename" # Use arch-specific filename
 
   # Create a build directory to keep extracted files organized
   mkdir -p build
   cd build
+
+  # Install electron and asar locally
+  echo "Installing local electron and asar..."
+  # Create dummy package.json if none exists
+  if [ ! -f "package.json" ]; then
+      echo '{"name":"claude-desktop-build","version":"0.0.1","private":true}' > package.json
+  fi
+  npm install --no-save electron asar || { echo "npm install failed"; exit 1; }
+  local _asar_exec="$(realpath ./node_modules/.bin/asar)"
+  echo "✓ Using local asar: $_asar_exec"
 
   # Extract the Windows installer using 7zip
   echo "Extracting Windows installer..."
   7z x -y "$_installer_file" || { echo "Extraction failed"; exit 1; } # Exit if extraction fails
 
   # The installer contains a .nupkg (NuGet package) file which holds the actual application files.
-  echo "Extracting nupkg for version ${pkgver}..."
-  # Construct the expected path to the nupkg file using the package version
-  local _nupkg_path="./AnthropicClaude-${pkgver}-full.nupkg"
-  # Check if the nupkg file exists
-  if [ ! -f "$_nupkg_path" ]; then
-      echo "❌ Could not find nupkg file for version ${pkgver}: $_nupkg_path"
+  echo "Finding and extracting nupkg..."
+  # Find the nupkg file dynamically (makepkg ensures sources are downloaded)
+  # Use the architecture-specific nupkg suffix defined earlier
+  local _nupkg_path_relative=$(find . -maxdepth 1 -name "AnthropicClaude-${pkgver}${_nupkg_suffix}.nupkg" | head -1) # Use arch-specific suffix
+  if [ -z "$_nupkg_path_relative" ]; then
+      echo "❌ Could not find AnthropicClaude nupkg file in $(pwd)"
       ls -la # List files for debugging
       exit 1 # Exit if nupkg is missing
   fi
+  local _nupkg_path="$(realpath "$_nupkg_path_relative")" # Store full path
   echo "✓ Using nupkg: $_nupkg_path"
   # Extract the nupkg file
   7z x -y "$_nupkg_path" || { echo "nupkg extraction failed"; exit 1; } # Exit if extraction fails
@@ -74,7 +150,7 @@ build() {
 
   # Extract the asar archive to modify its contents
   echo "Extracting asar package..."
-  npx asar extract app.asar app.asar.contents || { echo "asar extract failed"; exit 1; }
+  "$_asar_exec" extract app.asar app.asar.contents || { echo "asar extract failed"; exit 1; }
 
 
   # Create a stub for the native Node.js module used by the Windows version.
@@ -126,6 +202,11 @@ build() {
   };
 EOF
 
+  # Also create the stub in the unpacked directory
+  echo "Creating stub native module in unpacked directory..."
+  mkdir -p app.asar.unpacked/node_modules/claude-native
+  cp app.asar.contents/node_modules/claude-native/index.js app.asar.unpacked/node_modules/claude-native/index.js
+
   # Copy necessary resources from the extracted nupkg into the asar contents
   echo "Copying tray and i18n resources..."
   # Ensure the resources directory exists within the asar contents
@@ -143,7 +224,7 @@ EOF
 
   # Repack the modified contents back into the app.asar archive
   echo "Repacking asar..."
-  npx asar pack app.asar.contents app.asar || { echo "asar pack failed"; exit 1; }
+  "$_asar_exec" pack app.asar.contents app.asar || { echo "asar pack failed"; exit 1; }
 
 
   # Return to the main build directory ($srcdir/build) before finishing the build function
@@ -165,7 +246,11 @@ package() {
 
   # Install the main Electron application archive and its unpacked resources
   cp electron-app/app.asar "$pkgdir/usr/lib/$_pkgname/"
-  cp -r electron-app/app.asar.unpacked "$pkgdir/usr/share/lib/$_pkgname/" # Corrected path
+  cp -a electron-app/app.asar.unpacked "$pkgdir/usr/lib/$_pkgname/" # Corrected path, use -a
+
+  # Install the locally built electron
+  echo "Installing local electron..."
+  cp -a "$srcdir/build/node_modules" "$pkgdir/usr/lib/$_pkgname/"
 
   # Install application icons into the standard hicolor theme directories
   echo "Installing icons..."
@@ -207,48 +292,53 @@ EOF
 
   # Create a launcher script in /usr/bin
   echo "Creating launcher script..."
-  # This script handles detecting Wayland and passing appropriate flags to Electron.
+  # This script handles detecting Wayland, using the packaged Electron, and passing appropriate flags.
   cat > "$pkgdir/usr/bin/$_pkgname" << EOF
 #!/bin/bash
 # Launcher script for Claude Desktop
 
-# Detect if Wayland session is likely running by checking WAYLAND_DISPLAY environment variable
+APP_DIR="/usr/lib/$_pkgname"
+APP_ASAR="\$APP_DIR/app.asar"
+ELECTRON_EXEC="\$APP_DIR/node_modules/.bin/electron" # Use packaged electron
+
+# Check if packaged electron exists
+if [ ! -f "\$ELECTRON_EXEC" ]; then
+    echo "Error: Packaged Electron executable not found at \$ELECTRON_EXEC"
+    # Optionally notify the user graphically
+    if command -v zenity &> /dev/null; then
+        zenity --error --text="Claude Desktop cannot start because the packaged Electron framework is missing. Please reinstall the package."
+    elif command -v kdialog &> /dev/null; then
+        kdialog --error "Claude Desktop cannot start because the packaged Electron framework is missing. Please reinstall the package."
+    fi
+    exit 1
+fi
+
+# Detect if Wayland session is likely running
 IS_WAYLAND=false
 if [ ! -z "\$WAYLAND_DISPLAY" ]; then
   IS_WAYLAND=true
 fi
 
 # Base arguments for Electron: path to the app.asar archive
-ELECTRON_ARGS=("/usr/lib/$_pkgname/app.asar")
+ELECTRON_ARGS=("\$APP_ASAR")
 
 # Add specific flags for Wayland if detected
 if [ "\$IS_WAYLAND" = true ]; then
   echo "Wayland detected, adding Wayland flags to Electron..."
-  # Flags to enable Ozone platform (Wayland backend) and Wayland window decorations
   ELECTRON_ARGS+=("--enable-features=UseOzonePlatform,WaylandWindowDecorations" "--ozone-platform=wayland")
 fi
 
-# Append any arguments passed to this launcher script (e.g., URLs) to the Electron arguments
+# Append any arguments passed to this launcher script (e.g., URLs)
 ELECTRON_ARGS+=("\$@")
 
-# Execute the 'electron' command (provided by the electron dependency) with the constructed arguments
-electron "\${ELECTRON_ARGS[@]}"
+# Change to the application directory before execution
+cd "\$APP_DIR" || { echo "Error: Failed to change directory to \$APP_DIR"; exit 1; }
+
+# Execute the packaged electron command with the constructed arguments
+"\$ELECTRON_EXEC" "\${ELECTRON_ARGS[@]}"
 EOF
   # Make the launcher script executable
   chmod +x "$pkgdir/usr/bin/$_pkgname"
-
-  # Workaround for a potential hardcoded path issue in the application.
-  # Some Electron apps might expect resources in a specific Electron version path.
-  # This copies the en-US localization file to a path Electron might look for.
-  # Note: This might need adjustment depending on the Electron version dependency.
-  local extracted_en_us_json="$srcdir/build/lib/net45/resources/en-US.json"
-  if [ -f "$extracted_en_us_json" ]; then
-    echo "Applying workaround: Copying extracted en-US.json to /usr/lib/electron/resources/" # Adjusted path
-    install -d "$pkgdir/usr/lib/electron/resources" # Adjusted path
-    install -Dm644 "$extracted_en_us_json" "$pkgdir/usr/lib/electron/resources/en-US.json" # Adjusted path
-  else
-    echo "Warning: Could not find extracted en-US.json at $extracted_en_us_json to apply workaround."
-  fi
 
   # Install the LICENSE file into the standard location
   install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
