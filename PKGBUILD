@@ -5,6 +5,7 @@ _pkgname=claude-desktop # Internal variable for the base package name
 pkgname=$_pkgname       # The actual package name displayed to the user
 # pkgver is now determined dynamically by the pkgver() function
 pkgrel=1                # Package release number, reset to 1 when pkgver changes
+pkgver=0.9.1
 pkgdesc="Claude Desktop for Linux – an AI assistant from Anthropic" # Package description
 arch=('x86_64' 'aarch64') # Supported architectures
 url="https://github.com/aaddrick/claude-desktop-arch" # Project URL (this repo)
@@ -42,7 +43,6 @@ pkgver() {
   local _installer_file="$_temp_dir/$_installer_filename" # Use arch-specific filename
 
   # Download the installer to a temporary location
-  echo "Checking latest version by downloading installer..." >&2 # Output to stderr
   if ! wget -q -O "$_installer_file" "$_download_url"; then
     echo "ERROR: Failed to download installer for version check." >&2
     rm -rf "$_temp_dir"
