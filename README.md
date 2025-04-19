@@ -1,5 +1,9 @@
 **Debian/Ubuntu Linux users:** For the DPKG/AppImage build script and Debian-specific instructions: [https://github.com/aaddrick/claude-desktop-debian](https://github.com/aaddrick/claude-desktop-debian)
 
+**This repo isn't maintained actively. Please checkout the links below for alternatives**
+
+https://github.com/jkoelker/claude-desktop-native
+
 ***THIS IS AN UNOFFICIAL PKGBUILD FOR ARCH LINUX BASED SYSTEMS!***
 
 If you run into an issue with this build script, make an issue here. Don't bug Anthropic about it - they already have enough on their plates.
